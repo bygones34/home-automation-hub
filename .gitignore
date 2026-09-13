@@ -1,0 +1,15 @@
+# Node / Frontend
+**/node_modules/
+**/dist/
+**/dist-ssr/
+*.local
+
+# .NET
+**/bin/
+**/obj/
+.vs/
+*.user
+
+# Docker & OS
+.DS_Store
+Thumbs.db

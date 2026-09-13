@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="HomeAutomationHub-Frontend/HomeAutomationHub-Frontend.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="HomeAutomationHub/HomeAutomationHub.csproj" />
+</Solution>
