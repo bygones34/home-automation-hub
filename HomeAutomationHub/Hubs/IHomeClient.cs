@@ -8,4 +8,5 @@ public interface IHomeClient
     Task DeviceStateChanged(DeviceState state);
 
     Task NotificationReceived(string title, string message);
+    Task RuleTriggered(object notification);
 }

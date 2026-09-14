@@ -12,11 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Controllers\" />
+    <None Include=".github\copilot-instructions.md" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include=".github\copilot-instructions.md" />
+    <Folder Include="Controllers\" />
   </ItemGroup>
 
 </Project>

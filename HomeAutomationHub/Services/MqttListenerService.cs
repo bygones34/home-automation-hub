@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HomeAutomationHub.Core;
 using HomeAutomationHub.Hubs;
+using HomeAutomationHub.Services.RuleEngine;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,11 +16,16 @@ using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Protocol;
 
-public sealed class MqttListenerService(ILogger<MqttListenerService> logger, IDeviceStateStore deviceStateStore, IHubContext<HomeHub, IHomeClient> hubContext) : BackgroundService
+public sealed class MqttListenerService(
+    ILogger<MqttListenerService> logger,
+    IDeviceStateStore deviceStateStore,
+    IHubContext<HomeHub, IHomeClient> hubContext,
+    IRuleEngineService ruleEngineService) : BackgroundService
 {
     private readonly ILogger<MqttListenerService> _logger = logger;
     private readonly IDeviceStateStore _deviceStateStore = deviceStateStore;
     private readonly IHubContext<HomeHub, IHomeClient> _hubContext = hubContext;
+    private readonly IRuleEngineService _ruleEngineService = ruleEngineService;
 
     private readonly MqttFactory _factory = new();
     private IMqttClient? _client;
@@ -61,13 +67,11 @@ public sealed class MqttListenerService(ILogger<MqttListenerService> logger, IDe
         {
             try
             {
-                // Ensure connected; if not connected, EnsureConnectedAsync will connect and subscribe
                 if (_client == null || !_client.IsConnected)
                 {
                     await EnsureConnectedAsync(stoppingToken).ConfigureAwait(false);
                 }
 
-                // While connected, pause briefly and continue to monitor connection state
                 while (_client != null && _client.IsConnected && !stoppingToken.IsCancellationRequested)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false);
@@ -103,8 +107,6 @@ public sealed class MqttListenerService(ILogger<MqttListenerService> logger, IDe
 
         _client ??= _factory.CreateMqttClient();
 
-        // Attach message handler to receive application messages
-        // Prefer the async event if available in this MQTTnet build
         _client.ApplicationMessageReceivedAsync += async e =>
         {
             try
@@ -153,17 +155,10 @@ public sealed class MqttListenerService(ILogger<MqttListenerService> logger, IDe
         }
     }
 
-    // The actual message handling is wired in EnsureConnectedAsync via UseApplicationMessageReceivedHandler.
-    // HandleMessageAsync wrapper is not needed.
-
-    // Public helper that can be invoked by an MQTT message handler once topic and
-    // payload strings are available. This contains the parsing, state update and
-    // broadcast logic.
     public async Task ProcessTelemetryAsync(string topic, string payload)
     {
         if (string.IsNullOrWhiteSpace(topic)) throw new ArgumentException("topic is required", nameof(topic));
 
-        // Expect topic: home/devices/{deviceId}/telemetry
         var parts = topic.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 4 || !string.Equals(parts[0], "home", StringComparison.OrdinalIgnoreCase) || !string.Equals(parts[1], "devices", StringComparison.OrdinalIgnoreCase))
         {
@@ -220,7 +215,6 @@ public sealed class MqttListenerService(ILogger<MqttListenerService> logger, IDe
             telemetry = new Dictionary<string, object> { ["raw"] = payload };
         }
 
-        // Determine isActive from telemetry 'state' property supporting multiple runtime types
         var isActive = false;
         if (telemetry.TryGetValue("state", out var stateObj))
         {
@@ -255,6 +249,16 @@ public sealed class MqttListenerService(ILogger<MqttListenerService> logger, IDe
         if (updated != null)
         {
             await _hubContext.Clients.All.DeviceStateChanged(updated).ConfigureAwait(false);
+        }
+
+        // Kural motorunu tetikle
+        try
+        {
+            await _ruleEngineService.EvaluateTelemetryAsync(deviceId, payload).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Kural motoru çalışırken hata oluştu: {DeviceId}", deviceId);
         }
     }
 }

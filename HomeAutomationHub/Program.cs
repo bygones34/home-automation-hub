@@ -1,11 +1,14 @@
+using HomeAutomationHub.Api;
 using HomeAutomationHub.Core;
 using HomeAutomationHub.Hubs;
+using HomeAutomationHub.Models;
 using HomeAutomationHub.Services;
-using HomeAutomationHub.Api;
+using HomeAutomationHub.Services.RuleEngine;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Service registrations
+builder.Services.AddSingleton<IRuleEngineService, RuleEngineService>();
 builder.Services.AddSingleton<IDeviceStateStore, InMemoryDeviceStateStore>();
 builder.Services.AddSingleton<MqttListenerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MqttListenerService>());
@@ -19,7 +22,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(AllowFrontend, policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173").AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -31,7 +37,6 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// In development, avoid forcing HTTPS so the Vite dev server (HTTP) can call APIs without redirect.
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -59,6 +64,30 @@ devices.MapPost("/{deviceId}/command", async (string deviceId, DeviceCommandRequ
 
     await mqtt.PublishCommandAsync(deviceId, req.Command).ConfigureAwait(false);
     return Results.Accepted($"/api/devices/{deviceId}");
+});
+
+// Minimal API: /api/rules (Otomasyon Kural Motoru Endpoint'leri)
+var rules = app.MapGroup("/api/rules");
+
+rules.MapGet("/", (IRuleEngineService ruleEngine) =>
+    Results.Ok(ruleEngine.GetRules()));
+
+rules.MapPost("/", (AutomationRule rule, IRuleEngineService ruleEngine) =>
+{
+    var created = ruleEngine.AddRule(rule);
+    return Results.Created($"/api/rules/{created.Id}", created);
+});
+
+rules.MapDelete("/{id}", (string id, IRuleEngineService ruleEngine) =>
+{
+    var deleted = ruleEngine.DeleteRule(id);
+    return deleted ? Results.NoContent() : Results.NotFound();
+});
+
+rules.MapPatch("/{id}/toggle", (string id, bool isEnabled, IRuleEngineService ruleEngine) =>
+{
+    var toggled = ruleEngine.ToggleRule(id, isEnabled);
+    return toggled ? Results.Ok() : Results.NotFound();
 });
 
 app.Run();
