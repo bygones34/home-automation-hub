@@ -1,5 +1,6 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
 import type { DeviceState } from "../types/device";
+import type { RuleTriggeredNotification } from "../types/rule";
 
 const HUB_URL = "http://localhost:5235/hubs/home";
 
@@ -44,6 +45,48 @@ export function subscribeDeviceStateChanged(handler: (state: DeviceState) => voi
   return () => {
     try {
       connection.off("DeviceStateChanged", wrapped);
+    } catch {
+      // ignore
+    }
+  };
+}
+
+export function subscribeRuleTriggered(
+  handler: (notification: RuleTriggeredNotification) => void
+): () => void {
+  const wrapped = (notification: RuleTriggeredNotification) => {
+    try {
+      handler(notification);
+    } catch (err) {
+      console.error("RuleTriggered handler error:", err);
+    }
+  };
+
+  connection.on("RuleTriggered", wrapped);
+  return () => {
+    try {
+      connection.off("RuleTriggered", wrapped);
+    } catch {
+      // ignore
+    }
+  };
+}
+
+export function subscribeNotificationReceived(
+  handler: (title: string, message: string) => void
+): () => void {
+  const wrapped = (title: string, message: string) => {
+    try {
+      handler(title, message);
+    } catch (err) {
+      console.error("NotificationReceived handler error:", err);
+    }
+  };
+
+  connection.on("NotificationReceived", wrapped);
+  return () => {
+    try {
+      connection.off("NotificationReceived", wrapped);
     } catch {
       // ignore
     }

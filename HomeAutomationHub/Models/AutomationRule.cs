@@ -1,5 +1,8 @@
-﻿namespace HomeAutomationHub.Models
+using System.Text.Json.Serialization;
+
+namespace HomeAutomationHub.Models
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum ComparisonOperator
     {
         GreaterThan,
@@ -8,8 +11,8 @@
     }
     public class AutomationRule
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
         public bool IsEnabled { get; set; } = true;
 
         // Tetikleyici Koşul (Source)

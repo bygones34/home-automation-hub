@@ -92,11 +92,53 @@ export function useDevices() {
     }
   };
 
+  const updateDeviceSetting = async (id: string, updates: Record<string, any>) => {
+    // Optimistic UI update
+    setDevices(prev => prev.map(d => {
+      if (d.deviceId === id) {
+        const currentTelemetry = typeof d.telemetry === 'object' && d.telemetry !== null ? { ...d.telemetry } : {};
+
+        // raw dizesi varsa içindeki değerleri de senkronize et
+        if (typeof currentTelemetry.raw === 'string') {
+          let rawStr = currentTelemetry.raw;
+          for (const [key, val] of Object.entries(updates)) {
+            const regex = new RegExp(`("${key}"|'${key}'|${key})\\s*:\\s*("[^"]*"|'[^']*'|[^,}]+)`, 'i');
+            if (regex.test(rawStr)) {
+              rawStr = rawStr.replace(regex, `"${key}":"${val}"`);
+            } else {
+              rawStr = rawStr.replace(/}$/, `,"${key}":"${val}"}`);
+            }
+          }
+          currentTelemetry.raw = rawStr;
+        }
+
+        const updatedTelemetry = {
+          ...currentTelemetry,
+          ...updates,
+        };
+        const isActive = updates.state !== undefined ? updates.state === 'ON' || updates.state === true : d.isActive;
+        return {
+          ...d,
+          isActive,
+          telemetry: updatedTelemetry,
+        };
+      }
+      return d;
+    }));
+
+    try {
+      await sendDeviceCommand(id, JSON.stringify(updates));
+    } catch {
+      loadDevices();
+    }
+  };
+
   return {
     devices,
     loading,
     error,
     connectionStatus,
-    toggleDevice
+    toggleDevice,
+    updateDeviceSetting,
   };
 }

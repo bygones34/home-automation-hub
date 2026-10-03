@@ -8,7 +8,10 @@ A lightweight, real-time Home Automation and IoT management dashboard designed f
 
 * **Real-time Synchronization:** Sub-second state updates across all connected clients via ASP.NET Core SignalR websockets.
 * **MQTT Telemetry Ingestion:** Background ingestion service consuming telemetry payloads from Eclipse Mosquitto broker topics.
-* **Dynamic Telemetry Badges:** Intelligent parsing of diverse telemetry payloads (temperature, humidity, device states) into structured micro-badges.
+* **Configurable Automation Rule Engine:** Visual rule builder evaluating live sensor telemetry (`GreaterThan`, `LessThan`, `Equals`) with hysteresis cooldown and automated actuator triggering.
+* **Live Notifications & History Drawer:** Multi-toast stack with auto-dismiss timers and a slide-over notification history drawer tracking rule executions and system events.
+* **Extended Device Controls:** Real-time brightness dimming sliders (1–100%), color temperature presets (warm, neutral, cool), and thermostat target steppers with climate modes (Heat, Cool, Eco).
+* **Room & Zone Grouping:** Intelligent room categorization (Salon, Yatak Odası, Mutfak...), room filter pills, dual view modes, and room-level batch master switches (*"Tümünü Aç"* / *"Tümünü Kapat"*).
 * **Optimistic UI Updates:** Instant toggle state responsiveness with graceful fallback handling on API communication errors.
 * **Modern Dark UI:** Responsive dashboard styled with Tailwind CSS, Lucide icons, and soft rounded component aesthetics.
 
@@ -32,13 +35,17 @@ A lightweight, real-time Home Automation and IoT management dashboard designed f
 HomeAutomationHub/
 ├── docker/                        # Mosquitto broker configuration & compose files
 ├── HomeAutomationHub/             # ASP.NET Core Web API & SignalR Hub
-│   ├── Controllers/               # Device management endpoints
-│   ├── Hubs/                      # SignalR real-time event distribution
-│   └── Services/                  # MQTT subscriber & device state stores
+│   ├── Api/                       # Minimal API request models & contracts
+│   ├── Core/                      # DeviceState records & in-memory state store
+│   ├── Hubs/                      # SignalR real-time event distribution (HomeHub)
+│   ├── Models/                    # Automation rule models & operator enums
+│   └── Services/                  # MQTT subscriber service & rule engine
 ├── HomeAutomationHub-Frontend/    # React/Vite Dashboard application
-│   ├── src/components/            # UI components (DeviceCard, etc.)
-│   ├── src/hooks/                 # Custom state & SignalR lifecycle hooks
-│   └── src/services/              # REST API & WebSocket service handlers
+│   ├── src/components/            # UI components (DeviceCard, RoomSection, RulesManager, etc.)
+│   ├── src/hooks/                 # Custom state hooks (useDevices, useRules, useNotifications)
+│   ├── src/services/              # REST API & WebSocket handlers
+│   ├── src/types/                 # TypeScript interfaces (device, rule, notification)
+│   └── src/utils/                 # Room categorization & heuristic helpers
 └── HomeAutomationHub.slnx         # Solution file
 ```
 
@@ -90,7 +97,10 @@ docker exec -i mqtt-broker mosquitto_pub -t "home/devices/bedroom-sensor/telemet
 
 ## 🗺 Roadmap
 
+* [x] Configurable automation rule engine with hysteresis cooldown & SignalR event push.
+* [x] Live notification toast stack and slide-over event history drawer.
+* [x] Extended device controls (brightness dimmers, color temperatures, thermostat setpoints & modes).
+* [x] Device grouping by rooms, room filter pills, and zone-based batch master controls.
 * [ ] Time-series analytics with interactive temperature & humidity history charts.
-* [ ] Configurable automation rule engine (e.g., *if temp > 24°C then toggle device*).
-* [ ] Device grouping by rooms and zone-based batch controls.
+* [ ] Persistent storage (SQLite / EF Core) for devices and automation rules across restarts.
 * [ ] Authentication and role-based access control.
