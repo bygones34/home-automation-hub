@@ -8,4 +8,5 @@ public sealed record DeviceState(
     string DeviceType,
     bool IsActive,
     IReadOnlyDictionary<string, object> Telemetry,
-    DateTime LastUpdatedUtc);
+    DateTime LastUpdatedUtc,
+    string? Room = null);

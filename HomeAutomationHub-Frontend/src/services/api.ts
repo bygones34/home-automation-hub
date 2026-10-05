@@ -80,3 +80,16 @@ export async function toggleRule(id: string, isEnabled: boolean): Promise<boolea
   return res.ok;
 }
 
+export async function updateDeviceRoom(deviceId: string, room: string): Promise<boolean> {
+  if (!deviceId) throw new Error("deviceId is required");
+
+  const res = await fetch(`${BASE}/api/devices/${encodeURIComponent(deviceId)}/room`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ room }),
+    credentials: "include",
+  });
+
+  return res.ok;
+}
+

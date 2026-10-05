@@ -1,11 +1,20 @@
 using HomeAutomationHub.Api;
 using HomeAutomationHub.Core;
+using HomeAutomationHub.Data;
 using HomeAutomationHub.Hubs;
 using HomeAutomationHub.Models;
 using HomeAutomationHub.Services;
 using HomeAutomationHub.Services.RuleEngine;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// EF Core SQLite registration
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Data Source=homeautomationhub.db";
+builder.Services.AddDbContext<HomeAutomationDbContext>(options =>
+    options.UseSqlite(connectionString));
 
 // Service registrations
 builder.Services.AddSingleton<IRuleEngineService, RuleEngineService>();
@@ -30,6 +39,21 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// SQLite veritabanı şemasını ve WAL modunu ilklendir
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<HomeAutomationDbContext>();
+    await db.Database.EnsureCreatedAsync();
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    }
+    catch
+    {
+        // in-memory / test provider fallback
+    }
+}
 
 // HTTP pipeline
 if (app.Environment.IsDevelopment())
@@ -64,6 +88,21 @@ devices.MapPost("/{deviceId}/command", async (string deviceId, DeviceCommandRequ
 
     await mqtt.PublishCommandAsync(deviceId, req.Command).ConfigureAwait(false);
     return Results.Accepted($"/api/devices/{deviceId}");
+});
+
+devices.MapPatch("/{deviceId}/room", (string deviceId, DeviceRoomRequest req, IDeviceStateStore store, IHubContext<HomeHub, IHomeClient> hubContext) =>
+{
+    if (string.IsNullOrWhiteSpace(req?.Room)) return Results.BadRequest();
+
+    var updated = store.UpdateRoom(deviceId, req.Room.Trim());
+    if (!updated) return Results.NotFound();
+
+    var state = store.GetState(deviceId);
+    if (state != null)
+    {
+        _ = hubContext.Clients.All.DeviceStateChanged(state);
+    }
+    return Results.Ok(state);
 });
 
 // Minimal API: /api/rules (Otomasyon Kural Motoru Endpoint'leri)

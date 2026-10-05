@@ -3,6 +3,7 @@ import "./App.css";
 import { useDevices } from "./hooks/useDevices";
 import { useRules } from "./hooks/useRules";
 import { useNotifications } from "./hooks/useNotifications";
+import { updateDeviceRoom } from "./services/api";
 import DeviceCard from "./components/DeviceCard";
 import RoomSection from "./components/RoomSection";
 import RulesManager from "./components/RulesManager";
@@ -70,6 +71,9 @@ function App() {
       }
       return next;
     });
+
+    // Veritabanına da asenkron kaydet
+    updateDeviceRoom(deviceId, newRoom).catch(() => {});
   };
 
   // Aktif cihaz sayısını hem isActive hem de telemetry state'ine bakarak hesapla
