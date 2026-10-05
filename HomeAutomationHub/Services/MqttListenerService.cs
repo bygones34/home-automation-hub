@@ -20,12 +20,14 @@ public sealed class MqttListenerService(
     ILogger<MqttListenerService> logger,
     IDeviceStateStore deviceStateStore,
     IHubContext<HomeHub, IHomeClient> hubContext,
-    IRuleEngineService ruleEngineService) : BackgroundService
+    IRuleEngineService ruleEngineService,
+    ITelemetryHistoryService telemetryHistoryService) : BackgroundService
 {
     private readonly ILogger<MqttListenerService> _logger = logger;
     private readonly IDeviceStateStore _deviceStateStore = deviceStateStore;
     private readonly IHubContext<HomeHub, IHomeClient> _hubContext = hubContext;
     private readonly IRuleEngineService _ruleEngineService = ruleEngineService;
+    private readonly ITelemetryHistoryService _telemetryHistoryService = telemetryHistoryService;
 
     private readonly MqttFactory _factory = new();
     private IMqttClient? _client;
@@ -249,6 +251,16 @@ public sealed class MqttListenerService(
         if (updated != null)
         {
             await _hubContext.Clients.All.DeviceStateChanged(updated).ConfigureAwait(false);
+        }
+
+        // Zaman serisi geçmiş kaydı tut
+        try
+        {
+            await _telemetryHistoryService.RecordTelemetryAsync(deviceId, telemetry).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Zaman serisi telemetri kaydı tutulurken hata: {DeviceId}", deviceId);
         }
 
         // Kural motorunu tetikle

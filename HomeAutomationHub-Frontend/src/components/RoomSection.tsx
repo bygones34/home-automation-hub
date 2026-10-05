@@ -10,6 +10,7 @@ interface RoomSectionProps {
   onToggleDevice: (id: string, currentState: boolean) => void;
   onUpdateSetting?: (id: string, updates: Record<string, any>) => void;
   onAssignRoom?: (id: string, newRoom: string) => void;
+  onOpenHistory?: (id: string) => void;
   onMasterRoomToggle: (roomName: string, targetState: boolean) => void;
 }
 
@@ -19,6 +20,7 @@ export const RoomSection: React.FC<RoomSectionProps> = ({
   onToggleDevice,
   onUpdateSetting,
   onAssignRoom,
+  onOpenHistory,
   onMasterRoomToggle,
 }) => {
   const roomConfig = getRoomConfig(roomName);
@@ -90,6 +92,7 @@ export const RoomSection: React.FC<RoomSectionProps> = ({
             onToggle={onToggleDevice}
             onUpdateSetting={onUpdateSetting}
             onAssignRoom={onAssignRoom}
+            onOpenHistory={onOpenHistory}
           />
         ))}
       </div>

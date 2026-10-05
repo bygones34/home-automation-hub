@@ -1,5 +1,6 @@
 import type { DeviceState } from "../types/device";
 import type { AutomationRule } from "../types/rule";
+import type { TelemetryHistoryResponse } from "../types/telemetry";
 
 const BASE = "http://localhost:5235";
 
@@ -91,5 +92,26 @@ export async function updateDeviceRoom(deviceId: string, room: string): Promise<
   });
 
   return res.ok;
+}
+
+export async function fetchTelemetryHistory(
+  deviceId: string,
+  range: string = "24h"
+): Promise<TelemetryHistoryResponse> {
+  if (!deviceId) throw new Error("deviceId is required");
+
+  const res = await fetch(
+    `${BASE}/api/devices/${encodeURIComponent(deviceId)}/telemetry/history?range=${encodeURIComponent(range)}`,
+    {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch telemetry history: ${res.status} ${res.statusText}`);
+  }
+
+  return (await res.json()) as TelemetryHistoryResponse;
 }
 

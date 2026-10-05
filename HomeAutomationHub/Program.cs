@@ -19,6 +19,7 @@ builder.Services.AddDbContext<HomeAutomationDbContext>(options =>
 // Service registrations
 builder.Services.AddSingleton<IRuleEngineService, RuleEngineService>();
 builder.Services.AddSingleton<IDeviceStateStore, InMemoryDeviceStateStore>();
+builder.Services.AddSingleton<ITelemetryHistoryService, TelemetryHistoryService>();
 builder.Services.AddSingleton<MqttListenerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MqttListenerService>());
 builder.Services.AddSignalR();
@@ -48,6 +49,20 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS ""TelemetryRecords"" (
+                ""Id"" INTEGER PRIMARY KEY AUTOINCREMENT,
+                ""DeviceId"" TEXT NOT NULL,
+                ""TimestampUtc"" TEXT NOT NULL,
+                ""Temperature"" REAL NULL,
+                ""Humidity"" REAL NULL,
+                ""Power"" REAL NULL,
+                ""TargetTemperature"" REAL NULL,
+                ""Brightness"" REAL NULL
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_TelemetryRecords_DeviceId_TimestampUtc""
+            ON ""TelemetryRecords"" (""DeviceId"", ""TimestampUtc"");
+        ");
     }
     catch
     {
@@ -80,6 +95,12 @@ devices.MapGet("/{deviceId}", (string deviceId, IDeviceStateStore store) =>
 {
     var state = store.GetState(deviceId);
     return state is null ? Results.NotFound() : Results.Ok(state);
+});
+
+devices.MapGet("/{deviceId}/telemetry/history", async (string deviceId, string? range, ITelemetryHistoryService historyService) =>
+{
+    var history = await historyService.GetHistoryAsync(deviceId, range);
+    return Results.Ok(history);
 });
 
 devices.MapPost("/{deviceId}/command", async (string deviceId, DeviceCommandRequest req, MqttListenerService mqtt) =>

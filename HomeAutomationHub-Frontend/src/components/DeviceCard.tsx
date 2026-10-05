@@ -16,6 +16,7 @@ import {
   Minus,
   Plus,
   Zap,
+  TrendingUp,
 } from 'lucide-react';
 
 import { getRoomConfig, ROOM_CATALOG } from '../utils/roomUtils';
@@ -25,6 +26,7 @@ interface DeviceCardProps {
   onToggle: (id: string, currentState: boolean) => void;
   onUpdateSetting?: (id: string, updates: Record<string, any>) => void;
   onAssignRoom?: (id: string, newRoom: string) => void;
+  onOpenHistory?: (id: string) => void;
   currentRoom?: string;
   isPending?: boolean;
 }
@@ -34,6 +36,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
   onToggle,
   onUpdateSetting,
   onAssignRoom,
+  onOpenHistory,
   currentRoom,
   isPending = false,
 }) => {
@@ -247,7 +250,18 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {onOpenHistory && (
+              <button
+                type="button"
+                onClick={() => onOpenHistory(device.deviceId)}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 border border-slate-800/80 hover:border-indigo-500/30 transition cursor-pointer"
+                title="Zaman Serisi Telemetri Grafiği"
+              >
+                <TrendingUp className="w-4 h-4" />
+              </button>
+            )}
+
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 isDeviceOn

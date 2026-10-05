@@ -9,6 +9,7 @@ import RoomSection from "./components/RoomSection";
 import RulesManager from "./components/RulesManager";
 import NotificationToastContainer from "./components/NotificationToastContainer";
 import NotificationDrawer from "./components/NotificationDrawer";
+import TelemetryHistoryModal from "./components/TelemetryHistoryModal";
 import { resolveDeviceRoom, getRoomConfig } from "./utils/roomUtils";
 import {
   LayoutGrid,
@@ -48,6 +49,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState<'devices' | 'rules'>('devices');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [historyDeviceId, setHistoryDeviceId] = useState<string | null>(null);
 
   // Oda yönetimi state'leri
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
@@ -130,6 +132,12 @@ function App() {
       }
     });
   };
+
+  // Seçili geçmiş analiz cihazı
+  const selectedHistoryDevice = devices.find((d) => d.deviceId === historyDeviceId);
+  const selectedHistoryDeviceRoom = selectedHistoryDevice
+    ? resolveDeviceRoom(selectedHistoryDevice, roomOverrides)
+    : undefined;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
@@ -341,6 +349,7 @@ function App() {
                     onToggleDevice={toggleDevice}
                     onUpdateSetting={updateDeviceSetting}
                     onAssignRoom={handleAssignRoom}
+                    onOpenHistory={(id) => setHistoryDeviceId(id)}
                     onMasterRoomToggle={handleMasterRoomToggle}
                   />
                 ))}
@@ -356,6 +365,7 @@ function App() {
                     onToggle={toggleDevice}
                     onUpdateSetting={updateDeviceSetting}
                     onAssignRoom={handleAssignRoom}
+                    onOpenHistory={(id) => setHistoryDeviceId(id)}
                   />
                 ))}
               </div>
@@ -386,6 +396,16 @@ function App() {
         onMarkAsRead={markAsRead}
         onClearAll={clearAllNotifications}
       />
+
+      {/* Zaman Serisi Telemetri ve Trend Grafiği Modalı */}
+      {historyDeviceId && (
+        <TelemetryHistoryModal
+          deviceId={historyDeviceId}
+          deviceName={selectedHistoryDevice?.deviceId}
+          roomName={selectedHistoryDeviceRoom}
+          onClose={() => setHistoryDeviceId(null)}
+        />
+      )}
     </div>
   );
 }

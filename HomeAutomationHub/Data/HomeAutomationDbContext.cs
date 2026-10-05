@@ -12,6 +12,7 @@ public class HomeAutomationDbContext : DbContext
 
     public DbSet<DeviceEntity> Devices => Set<DeviceEntity>();
     public DbSet<AutomationRuleEntity> Rules => Set<AutomationRuleEntity>();
+    public DbSet<TelemetryRecordEntity> TelemetryRecords => Set<TelemetryRecordEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,6 +36,13 @@ public class HomeAutomationDbContext : DbContext
             entity.Property(e => e.TelemetryKey).HasMaxLength(64);
             entity.Property(e => e.TargetAction).HasMaxLength(64);
             entity.Property(e => e.Operator).HasConversion<string>().HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<TelemetryRecordEntity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DeviceId).HasMaxLength(128);
+            entity.HasIndex(e => new { e.DeviceId, e.TimestampUtc });
         });
     }
 }
