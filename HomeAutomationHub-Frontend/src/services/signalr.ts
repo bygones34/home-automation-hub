@@ -2,7 +2,8 @@ import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } fro
 import type { DeviceState } from "../types/device";
 import type { RuleTriggeredNotification } from "../types/rule";
 
-const HUB_URL = "http://localhost:5235/hubs/home";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5235";
+const HUB_URL = `${API_BASE}/hubs/home`;
 
 export const connection: HubConnection = new HubConnectionBuilder()
   .withUrl(HUB_URL)

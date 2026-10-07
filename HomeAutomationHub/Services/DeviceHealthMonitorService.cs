@@ -3,36 +3,38 @@ namespace HomeAutomationHub.Services;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using HomeAutomationHub.Configuration;
 using HomeAutomationHub.Core;
 using HomeAutomationHub.Hubs;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 public sealed class DeviceHealthMonitorService : BackgroundService
 {
     private readonly IDeviceStateStore _deviceStateStore;
     private readonly IHubContext<HomeHub, IHomeClient> _hubContext;
-    private readonly IConfiguration _configuration;
+    private readonly IOptions<DeviceHealthOptions> _healthOptions;
     private readonly ILogger<DeviceHealthMonitorService> _logger;
 
     public DeviceHealthMonitorService(
         IDeviceStateStore deviceStateStore,
         IHubContext<HomeHub, IHomeClient> hubContext,
-        IConfiguration configuration,
+        IOptions<DeviceHealthOptions> healthOptions,
         ILogger<DeviceHealthMonitorService> logger)
     {
         _deviceStateStore = deviceStateStore ?? throw new ArgumentNullException(nameof(deviceStateStore));
         _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _healthOptions = healthOptions ?? throw new ArgumentNullException(nameof(healthOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var timeoutSeconds = _configuration.GetValue<int>("DeviceHealth:HeartbeatTimeoutSeconds", 120);
-        var scanIntervalSeconds = _configuration.GetValue<int>("DeviceHealth:ScanIntervalSeconds", 15);
+        var options = _healthOptions.Value;
+        var timeoutSeconds = options.HeartbeatTimeoutSeconds;
+        var scanIntervalSeconds = options.ScanIntervalSeconds;
 
         _logger.LogInformation(
             "Cihaz Sağlığı & Heartbeat Tarayıcısı başlatıldı. Zaman aşımı eşiği: {TimeoutSeconds} sn, Tarama periyodu: {ScanIntervalSeconds} sn.",

@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HomeAutomationHub.Configuration;
 using HomeAutomationHub.Data;
 using HomeAutomationHub.Data.Entities;
 using HomeAutomationHub.Hubs;
@@ -12,6 +13,7 @@ using HomeAutomationHub.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 public class RuleEngineService : IRuleEngineService
 {
@@ -19,15 +21,18 @@ public class RuleEngineService : IRuleEngineService
     private readonly IHubContext<HomeHub, IHomeClient> _hubContext;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RuleEngineService> _logger;
+    private readonly IOptions<RuleEngineOptions> _ruleOptions;
 
     public RuleEngineService(
         IHubContext<HomeHub, IHomeClient> hubContext,
         IServiceScopeFactory scopeFactory,
-        ILogger<RuleEngineService> logger)
+        ILogger<RuleEngineService> logger,
+        IOptions<RuleEngineOptions> ruleOptions)
     {
         _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _ruleOptions = ruleOptions ?? throw new ArgumentNullException(nameof(ruleOptions));
 
         LoadPersistedRules();
     }
@@ -229,7 +234,7 @@ public class RuleEngineService : IRuleEngineService
 
             if (isTriggered)
             {
-                if (rule.LastTriggeredUtc.HasValue && (DateTime.UtcNow - rule.LastTriggeredUtc.Value).TotalSeconds < 10)
+                if (rule.LastTriggeredUtc.HasValue && (DateTime.UtcNow - rule.LastTriggeredUtc.Value).TotalSeconds < _ruleOptions.Value.DebounceSeconds)
                     continue;
 
                 rule.LastTriggeredUtc = DateTime.UtcNow;

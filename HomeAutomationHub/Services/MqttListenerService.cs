@@ -6,12 +6,14 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using HomeAutomationHub.Configuration;
 using HomeAutomationHub.Core;
 using HomeAutomationHub.Hubs;
 using HomeAutomationHub.Services.RuleEngine;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Protocol;
@@ -21,13 +23,15 @@ public sealed class MqttListenerService(
     IDeviceStateStore deviceStateStore,
     IHubContext<HomeHub, IHomeClient> hubContext,
     IRuleEngineService ruleEngineService,
-    ITelemetryHistoryService telemetryHistoryService) : BackgroundService
+    ITelemetryHistoryService telemetryHistoryService,
+    IOptions<MqttOptions> mqttOptions) : BackgroundService
 {
     private readonly ILogger<MqttListenerService> _logger = logger;
     private readonly IDeviceStateStore _deviceStateStore = deviceStateStore;
     private readonly IHubContext<HomeHub, IHomeClient> _hubContext = hubContext;
     private readonly IRuleEngineService _ruleEngineService = ruleEngineService;
     private readonly ITelemetryHistoryService _telemetryHistoryService = telemetryHistoryService;
+    private readonly IOptions<MqttOptions> _mqttOptions = mqttOptions;
 
     private readonly MqttFactory _factory = new();
     private IMqttClient? _client;
@@ -47,7 +51,7 @@ public sealed class MqttListenerService(
 
             if (_client == null) throw new InvalidOperationException("MQTT client is not available");
 
-            var topic = $"home/devices/{deviceId}/set";
+            var topic = $"{_mqttOptions.Value.TopicPrefix}/{deviceId}/set";
             var message = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
                 .WithPayload(commandPayload)
@@ -90,10 +94,11 @@ public sealed class MqttListenerService(
 
             if (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("MQTT client disconnected or failed. Reconnecting in 5s...");
+                var delay = _mqttOptions.Value.ReconnectDelaySeconds;
+                _logger.LogInformation("MQTT client disconnected or failed. Reconnecting in {Delay}s...", delay);
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(delay), stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -123,21 +128,22 @@ public sealed class MqttListenerService(
             }
         };
 
-        var clientId = $"HubCore-{Guid.NewGuid():N}";
+        var mqttConfig = _mqttOptions.Value;
+        var clientId = $"{mqttConfig.ClientIdPrefix}-{Guid.NewGuid():N}";
         var options = new MqttClientOptionsBuilder()
             .WithClientId(clientId)
-            .WithTcpServer("localhost", 1883)
+            .WithTcpServer(mqttConfig.Host, mqttConfig.Port)
             .WithCleanSession()
             .Build();
 
         try
         {
-            _logger.LogInformation("Connecting MQTT client {ClientId} to localhost:1883", clientId);
+            _logger.LogInformation("Connecting MQTT client {ClientId} to {Host}:{Port}", clientId, mqttConfig.Host, mqttConfig.Port);
             await _client.ConnectAsync(options, cancellationToken).ConfigureAwait(false);
 
-            _logger.LogInformation("Subscribing to topics home/devices/+/telemetry and home/devices/+/status");
-            var telemetryFilter = new MqttTopicFilterBuilder().WithTopic("home/devices/+/telemetry").WithAtLeastOnceQoS().Build();
-            var statusFilter = new MqttTopicFilterBuilder().WithTopic("home/devices/+/status").WithAtLeastOnceQoS().Build();
+            _logger.LogInformation("Subscribing to topics {Prefix}/+/telemetry and {Prefix}/+/status", mqttConfig.TopicPrefix, mqttConfig.TopicPrefix);
+            var telemetryFilter = new MqttTopicFilterBuilder().WithTopic($"{mqttConfig.TopicPrefix}/+/telemetry").WithAtLeastOnceQoS().Build();
+            var statusFilter = new MqttTopicFilterBuilder().WithTopic($"{mqttConfig.TopicPrefix}/+/status").WithAtLeastOnceQoS().Build();
             await _client.SubscribeAsync(telemetryFilter, cancellationToken).ConfigureAwait(false);
             await _client.SubscribeAsync(statusFilter, cancellationToken).ConfigureAwait(false);
         }

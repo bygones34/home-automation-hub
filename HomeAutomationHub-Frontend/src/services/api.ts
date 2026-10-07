@@ -2,7 +2,7 @@ import type { DeviceState } from "../types/device";
 import type { AutomationRule } from "../types/rule";
 import type { TelemetryHistoryResponse } from "../types/telemetry";
 
-const BASE = "http://localhost:5235";
+const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5235";
 
 export async function fetchDevices(): Promise<DeviceState[]> {
   const res = await fetch(`${BASE}/api/devices`, {

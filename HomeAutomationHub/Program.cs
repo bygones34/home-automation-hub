@@ -1,4 +1,5 @@
 using HomeAutomationHub.Api;
+using HomeAutomationHub.Configuration;
 using HomeAutomationHub.Core;
 using HomeAutomationHub.Data;
 using HomeAutomationHub.Hubs;
@@ -9,6 +10,12 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configuration Options registration
+builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOptions.SectionName));
+builder.Services.Configure<DeviceHealthOptions>(builder.Configuration.GetSection(DeviceHealthOptions.SectionName));
+builder.Services.Configure<RuleEngineOptions>(builder.Configuration.GetSection(RuleEngineOptions.SectionName));
+builder.Services.Configure<CorsOptions>(builder.Configuration.GetSection(CorsOptions.SectionName));
 
 // EF Core SQLite registration
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -27,13 +34,14 @@ builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-// CORS for local Vite frontend
+// CORS configuration from options
 const string AllowFrontend = "AllowFrontend";
+var corsConfig = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(AllowFrontend, policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+        policy.WithOrigins(corsConfig.AllowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
