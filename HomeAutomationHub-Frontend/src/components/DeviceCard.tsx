@@ -17,6 +17,7 @@ import {
   Plus,
   Zap,
   TrendingUp,
+  WifiOff,
 } from 'lucide-react';
 
 import { getRoomConfig, ROOM_CATALOG } from '../utils/roomUtils';
@@ -199,15 +200,42 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     }
   };
 
+  const isOnline = device.isOnline !== false;
+
+  const formatLastSeen = (isoStr?: string) => {
+    if (!isoStr) return '';
+    try {
+      const date = new Date(isoStr);
+      const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (diffSec < 60) return 'Az önce';
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin} dk önce`;
+      const diffHour = Math.floor(diffMin / 60);
+      if (diffHour < 24) return `${diffHour} sa önce`;
+      return `${Math.floor(diffHour / 24)} gün önce`;
+    } catch {
+      return '';
+    }
+  };
+  const lastSeenText = formatLastSeen(device.lastUpdatedUtc);
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 backdrop-blur-md transition-all duration-300 hover:border-slate-700 shadow-sm flex flex-col justify-between">
+    <div
+      className={`relative overflow-hidden rounded-2xl border p-5 backdrop-blur-md transition-all duration-300 shadow-sm flex flex-col justify-between ${
+        isOnline
+          ? 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700'
+          : 'border-rose-900/50 bg-slate-900/40 opacity-80 hover:border-rose-800/60'
+      }`}
+    >
       <div>
         {/* Üst Kısım: İkon, Cihaz Bilgisi, Rozet & Aç/Kapa Butonu */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div
               className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300 ${
-                isDeviceOn
+                !isOnline
+                  ? 'bg-rose-950/40 text-rose-400/80 border border-rose-900/40'
+                  : isDeviceOn
                   ? isLight
                     ? 'bg-amber-500/20 text-amber-400 shadow-lg shadow-amber-500/10'
                     : isThermostat
@@ -262,38 +290,61 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
               </button>
             )}
 
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                isDeviceOn
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700/50'
-              }`}
-            >
+            {!isOnline ? (
               <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isDeviceOn ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                title={`Cihaz Çevrimdışı (Son iletişim: ${lastSeenText})`}
+              >
+                <WifiOff className="w-3 h-3 text-rose-400 animate-pulse" />
+                <span>Çevrimdışı</span>
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  isDeviceOn
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700/50'
                 }`}
-              />
-              {isDeviceOn ? 'Açık' : 'Kapalı'}
-            </span>
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isDeviceOn ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                  }`}
+                />
+                {isDeviceOn ? 'Açık' : 'Kapalı'}
+              </span>
+            )}
 
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || !isOnline}
               onClick={() => onToggle(device.deviceId, isDeviceOn)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
-                isDeviceOn ? 'bg-emerald-500' : 'bg-slate-700'
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                !isOnline
+                  ? 'opacity-35 cursor-not-allowed bg-slate-800'
+                  : 'cursor-pointer ' + (isDeviceOn ? 'bg-emerald-500' : 'bg-slate-700')
               }`}
-              title={isDeviceOn ? 'Kapat' : 'Aç'}
+              title={!isOnline ? `Cihaz çevrimdışı (${lastSeenText})` : isDeviceOn ? 'Kapat' : 'Aç'}
             >
               <span
                 className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  isDeviceOn ? 'translate-x-5' : 'translate-x-0'
+                  isDeviceOn && isOnline ? 'translate-x-5' : 'translate-x-0'
                 }`}
               />
             </button>
           </div>
         </div>
+
+        {/* Çevrimdışı Durum Uyarısı */}
+        {!isOnline && (
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-900/50 bg-rose-950/20 px-3 py-1.5 text-[11px] text-rose-300">
+            <div className="flex items-center gap-1.5">
+              <WifiOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span>Bağlantı kesildi • Yanıt alınamıyor</span>
+            </div>
+            {lastSeenText && <span className="text-slate-400 font-mono text-[10px]">{lastSeenText}</span>}
+          </div>
+        )}
 
         {/* Telemetri Rozetleri */}
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-800/60 pt-3">

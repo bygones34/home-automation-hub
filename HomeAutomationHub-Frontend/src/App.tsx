@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   Layers,
   Home,
+  WifiOff,
 } from "lucide-react";
 
 function App() {
@@ -86,6 +87,7 @@ function App() {
   }).length;
 
   const activeRulesCount = rules.filter((r) => r.isEnabled).length;
+  const offlineDevicesCount = devices.filter((d) => d.isOnline === false).length;
 
   // Cihazları ve odalarını haritalama
   const devicesWithRooms = devices.map((d) => ({
@@ -104,6 +106,8 @@ function App() {
   const filteredDevicesWithRooms =
     selectedRoom === 'all'
       ? devicesWithRooms
+      : selectedRoom === 'offline'
+      ? devicesWithRooms.filter(({ device }) => device.isOnline === false)
       : devicesWithRooms.filter(({ room }) => room === selectedRoom);
 
   // Odaya göre gruplama
@@ -181,6 +185,19 @@ function App() {
           <div className="px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
             Kurallar: <span className="font-semibold text-slate-100">{rules.length}</span> ({activeRulesCount} Aktif)
           </div>
+
+          {/* Çevrimdışı Cihaz Uyarısı */}
+          {offlineDevicesCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedRoom(selectedRoom === 'offline' ? 'all' : 'offline')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 font-medium hover:bg-rose-500/20 transition cursor-pointer"
+              title="Çevrimdışı cihazları filtrele"
+            >
+              <WifiOff className="w-3.5 h-3.5 animate-pulse" />
+              <span>{offlineDevicesCount} Çevrimdışı</span>
+            </button>
+          )}
 
           {/* Bildirim Çanı Butonu */}
           <button
@@ -266,6 +283,24 @@ function App() {
                       {devices.length}
                     </span>
                   </button>
+
+                  {offlineDevicesCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRoom(selectedRoom === 'offline' ? 'all' : 'offline')}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-medium shrink-0 transition cursor-pointer ${
+                        selectedRoom === 'offline'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'bg-rose-950/40 border border-rose-900/60 text-rose-400 hover:bg-rose-900/40'
+                      }`}
+                    >
+                      <WifiOff className="w-3.5 h-3.5" />
+                      <span>Çevrimdışı</span>
+                      <span className="text-[10px] bg-slate-950/50 px-1.5 py-0.2 rounded-full font-mono">
+                        {offlineDevicesCount}
+                      </span>
+                    </button>
+                  )}
 
                   {presentRooms.map((roomName) => {
                     const rConfig = getRoomConfig(roomName);

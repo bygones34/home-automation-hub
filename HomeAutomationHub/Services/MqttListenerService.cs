@@ -115,7 +115,7 @@ public sealed class MqttListenerService(
             {
                 var topic = e.ApplicationMessage?.Topic ?? string.Empty;
                 var payload = e.ApplicationMessage?.Payload == null ? string.Empty : Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-                await ProcessTelemetryAsync(topic, payload).ConfigureAwait(false);
+                await RouteMessageAsync(topic, payload).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -135,9 +135,11 @@ public sealed class MqttListenerService(
             _logger.LogInformation("Connecting MQTT client {ClientId} to localhost:1883", clientId);
             await _client.ConnectAsync(options, cancellationToken).ConfigureAwait(false);
 
-            _logger.LogInformation("Subscribing to topic home/devices/+/telemetry");
-            var topicFilter = new MqttTopicFilterBuilder().WithTopic("home/devices/+/telemetry").WithAtLeastOnceQoS().Build();
-            await _client.SubscribeAsync(topicFilter, cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Subscribing to topics home/devices/+/telemetry and home/devices/+/status");
+            var telemetryFilter = new MqttTopicFilterBuilder().WithTopic("home/devices/+/telemetry").WithAtLeastOnceQoS().Build();
+            var statusFilter = new MqttTopicFilterBuilder().WithTopic("home/devices/+/status").WithAtLeastOnceQoS().Build();
+            await _client.SubscribeAsync(telemetryFilter, cancellationToken).ConfigureAwait(false);
+            await _client.SubscribeAsync(statusFilter, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -154,6 +156,72 @@ public sealed class MqttListenerService(
                 // ignore
             }
             throw;
+        }
+    }
+
+    private async Task RouteMessageAsync(string topic, string payload)
+    {
+        if (string.IsNullOrWhiteSpace(topic)) return;
+
+        var parts = topic.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 4 || !string.Equals(parts[0], "home", StringComparison.OrdinalIgnoreCase) || !string.Equals(parts[1], "devices", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Received message on unexpected topic {Topic}", topic);
+            return;
+        }
+
+        var deviceId = parts[2];
+        var action = parts[3];
+
+        if (string.Equals(action, "status", StringComparison.OrdinalIgnoreCase) || string.Equals(action, "availability", StringComparison.OrdinalIgnoreCase))
+        {
+            await ProcessStatusMessageAsync(deviceId, payload).ConfigureAwait(false);
+        }
+        else if (string.Equals(action, "telemetry", StringComparison.OrdinalIgnoreCase))
+        {
+            await ProcessTelemetryAsync(topic, payload).ConfigureAwait(false);
+        }
+    }
+
+    public async Task ProcessStatusMessageAsync(string deviceId, string payload)
+    {
+        var clean = (payload ?? string.Empty).Trim();
+        bool isOnline = true;
+
+        if (string.Equals(clean, "offline", StringComparison.OrdinalIgnoreCase) ||
+            clean.Contains("\"offline\"", StringComparison.OrdinalIgnoreCase) ||
+            clean.Contains("0") && clean.Length == 1)
+        {
+            isOnline = false;
+        }
+
+        var changed = _deviceStateStore.SetOnlineStatus(deviceId, isOnline);
+        if (changed)
+        {
+            var updated = _deviceStateStore.GetState(deviceId);
+            if (updated != null)
+            {
+                await _hubContext.Clients.All.DeviceStateChanged(updated).ConfigureAwait(false);
+            }
+
+            if (!isOnline)
+            {
+                await _hubContext.Clients.All.NotificationReceived(
+                    "Cihaz Çevrimdışı",
+                    $"{deviceId} cihazı MQTT durum bildirimi (LWT) ile çevrimdışı oldu.")
+                    .ConfigureAwait(false);
+
+                _logger.LogWarning("MQTT LWT ile cihaz çevrimdışı işaretlendi: {DeviceId}", deviceId);
+            }
+            else
+            {
+                await _hubContext.Clients.All.NotificationReceived(
+                    "Cihaz Çevrimiçi",
+                    $"{deviceId} cihazı sisteme yeniden bağlandı.")
+                    .ConfigureAwait(false);
+
+                _logger.LogInformation("MQTT durumu ile cihaz çevrimiçi işaretlendi: {DeviceId}", deviceId);
+            }
         }
     }
 
@@ -245,12 +313,25 @@ public sealed class MqttListenerService(
             }
         }
 
-        _deviceStateStore.UpdateState(deviceId, deviceType, isActive, telemetry);
+        var existing = _deviceStateStore.GetState(deviceId);
+        bool wasOffline = existing != null && !existing.IsOnline;
+
+        _deviceStateStore.UpdateState(deviceId, deviceType, isActive, telemetry, isOnline: true);
 
         var updated = _deviceStateStore.GetState(deviceId);
         if (updated != null)
         {
             await _hubContext.Clients.All.DeviceStateChanged(updated).ConfigureAwait(false);
+        }
+
+        if (wasOffline)
+        {
+            await _hubContext.Clients.All.NotificationReceived(
+                "Cihaz Çevrimiçi",
+                $"{deviceId} cihazından yeni telemetri alındı, yeniden çevrimiçi oldu.")
+                .ConfigureAwait(false);
+
+            _logger.LogInformation("Telemetri alımı ile cihaz yeniden çevrimiçi oldu: {DeviceId}", deviceId);
         }
 
         // Zaman serisi geçmiş kaydı tut

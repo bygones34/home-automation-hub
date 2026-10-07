@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IDeviceStateStore, InMemoryDeviceStateStore>();
 builder.Services.AddSingleton<ITelemetryHistoryService, TelemetryHistoryService>();
 builder.Services.AddSingleton<MqttListenerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MqttListenerService>());
+builder.Services.AddHostedService<DeviceHealthMonitorService>();
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
@@ -63,6 +64,14 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS ""IX_TelemetryRecords_DeviceId_TimestampUtc""
             ON ""TelemetryRecords"" (""DeviceId"", ""TimestampUtc"");
         ");
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"ALTER TABLE ""Devices"" ADD COLUMN ""IsOnline"" INTEGER NOT NULL DEFAULT 1;");
+        }
+        catch
+        {
+            // Column already exists or table was just created
+        }
     }
     catch
     {

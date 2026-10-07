@@ -9,4 +9,5 @@ public sealed record DeviceState(
     bool IsActive,
     IReadOnlyDictionary<string, object> Telemetry,
     DateTime LastUpdatedUtc,
-    string? Room = null);
+    string? Room = null,
+    bool IsOnline = true);

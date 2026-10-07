@@ -47,7 +47,8 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
                     entity.IsActive,
                     telemetry,
                     entity.LastUpdatedUtc,
-                    entity.Room);
+                    entity.Room,
+                    entity.IsOnline);
 
                 _states[entity.DeviceId] = state;
             }
@@ -113,7 +114,7 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
         return new Dictionary<string, object>();
     }
 
-    public void UpdateState(string deviceId, string deviceType, bool isActive, IReadOnlyDictionary<string, object> telemetry)
+    public void UpdateState(string deviceId, string deviceType, bool isActive, IReadOnlyDictionary<string, object> telemetry, bool isOnline = true)
     {
         if (deviceId is null) throw new ArgumentNullException(nameof(deviceId));
         if (deviceType is null) throw new ArgumentNullException(nameof(deviceType));
@@ -130,11 +131,39 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
             room = existing.Room;
         }
 
-        var state = new DeviceState(deviceId, deviceType, isActive, telemetry, DateTime.UtcNow, room);
+        var state = new DeviceState(deviceId, deviceType, isActive, telemetry, DateTime.UtcNow, room, isOnline);
         _states.AddOrUpdate(deviceId, state, (_, __) => state);
 
         // Veritabanına asenkron yaz
-        PersistDeviceStateAsync(deviceId, deviceType, isActive, telemetry, room);
+        PersistDeviceStateAsync(deviceId, deviceType, isActive, telemetry, room, isOnline);
+    }
+
+    public bool SetOnlineStatus(string deviceId, bool isOnline)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId)) return false;
+
+        if (_states.TryGetValue(deviceId, out var existing))
+        {
+            if (existing.IsOnline == isOnline)
+            {
+                return false;
+            }
+
+            var updated = new DeviceState(
+                existing.DeviceId,
+                existing.DeviceType,
+                existing.IsActive,
+                existing.Telemetry,
+                existing.LastUpdatedUtc,
+                existing.Room,
+                isOnline);
+
+            _states[deviceId] = updated;
+            PersistDeviceOnlineStatusAsync(deviceId, isOnline);
+            return true;
+        }
+
+        return false;
     }
 
     public bool UpdateRoom(string deviceId, string room)
@@ -149,7 +178,8 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
                 existing.IsActive,
                 existing.Telemetry,
                 DateTime.UtcNow,
-                room);
+                room,
+                existing.IsOnline);
 
             _states[deviceId] = updated;
             PersistDeviceRoomAsync(deviceId, room);
@@ -166,14 +196,15 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
             false,
             new Dictionary<string, object>(),
             DateTime.UtcNow,
-            room);
+            room,
+            true);
 
         _states[deviceId] = newState;
-        PersistDeviceStateAsync(deviceId, inferredType, false, newState.Telemetry, room);
+        PersistDeviceStateAsync(deviceId, inferredType, false, newState.Telemetry, room, true);
         return true;
     }
 
-    private void PersistDeviceStateAsync(string deviceId, string deviceType, bool isActive, IReadOnlyDictionary<string, object> telemetry, string? room)
+    private void PersistDeviceStateAsync(string deviceId, string deviceType, bool isActive, IReadOnlyDictionary<string, object> telemetry, string? room, bool isOnline)
     {
         _ = Task.Run(async () =>
         {
@@ -193,6 +224,7 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
                         DeviceType = deviceType,
                         Room = room,
                         IsActive = isActive,
+                        IsOnline = isOnline,
                         TelemetryJson = telJson,
                         LastUpdatedUtc = DateTime.UtcNow,
                         FirstSeenUtc = DateTime.UtcNow
@@ -203,6 +235,7 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
                     entity.DeviceType = deviceType;
                     if (!string.IsNullOrEmpty(room)) entity.Room = room;
                     entity.IsActive = isActive;
+                    entity.IsOnline = isOnline;
                     entity.TelemetryJson = telJson;
                     entity.LastUpdatedUtc = DateTime.UtcNow;
                 }
@@ -212,6 +245,29 @@ public sealed class InMemoryDeviceStateStore : IDeviceStateStore
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Cihaz durumu SQLite veritabanına kaydedilirken hata: {DeviceId}", deviceId);
+            }
+        });
+    }
+
+    private void PersistDeviceOnlineStatusAsync(string deviceId, bool isOnline)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<HomeAutomationDbContext>();
+
+                var entity = await db.Devices.FindAsync(deviceId);
+                if (entity != null)
+                {
+                    entity.IsOnline = isOnline;
+                    await db.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Cihaz çevrimdışı durumu SQLite veritabanına kaydedilirken hata: {DeviceId}", deviceId);
             }
         });
     }

@@ -24,6 +24,7 @@ public class HomeAutomationDbContext : DbContext
             entity.Property(e => e.DeviceId).HasMaxLength(128);
             entity.Property(e => e.DeviceType).HasMaxLength(64);
             entity.Property(e => e.Room).HasMaxLength(64);
+            entity.Property(e => e.IsOnline).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<AutomationRuleEntity>(entity =>

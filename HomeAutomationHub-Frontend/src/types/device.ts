@@ -5,4 +5,5 @@ export interface DeviceState {
   telemetry: Record<string, any>;
   lastUpdatedUtc: string; // ISO 8601 string
   room?: string;
+  isOnline?: boolean;
 }
